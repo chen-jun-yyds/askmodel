@@ -46,16 +46,12 @@ def parse_argv(argv: list):
 
     if argv[0] == "project":
         return ("project", None, None, argv[1:], False)
-
     if argv[0] == "main":
         return ("main", None, None, argv[1:], False)
-
     if argv[0] == "small":
         return ("small", None, None, argv[1:], False)
-
     if argv[0] == "providers":
         return ("providers", None, None, [], False)
-
     if argv[0] == "flash":
         return ("flash", None, None, [], False)
 
@@ -153,8 +149,7 @@ def parse_flags(args: list) -> dict:
 
 def cmd_project(args: list):
     if not args:
-        name = config.get_current_project()
-        print(f"当前项目：{name}")
+        print(f"当前项目：{config.get_current_project()}")
         return
 
     sub = args[0]
@@ -203,8 +198,7 @@ def _show_model(cfg: dict, label: str):
     print(f"{label}：")
     print(f"  base_url: {cfg.get('base_url') or '(未配置)'}")
     print(f"  model:    {cfg.get('model') or '(未配置)'}")
-    key = cfg.get("api_key", "")
-    print(f"  api_key:  {'已设置' if key else '(未配置)'}")
+    print(f"  api_key:  {'已设置' if cfg.get('api_key') else '(未配置)'}")
 
 
 def _apply_preset(cfg: dict, provider: str, key: str) -> bool:
@@ -221,7 +215,6 @@ def _apply_preset(cfg: dict, provider: str, key: str) -> bool:
 
 def cmd_main(args: list):
     cfg = config.load()
-
     if not args:
         _show_model(cfg, "主模型配置")
         return
@@ -241,31 +234,23 @@ def cmd_main(args: list):
     flags = parse_flags(args)
     changed = []
     if "key" in flags:
-        cfg["api_key"] = flags["key"]
-        changed.append("key")
+        cfg["api_key"] = flags["key"]; changed.append("key")
     if "base" in flags:
-        cfg["base_url"] = flags["base"]
-        changed.append("base")
+        cfg["base_url"] = flags["base"]; changed.append("base")
     if "model" in flags:
-        cfg["model"] = flags["model"]
-        changed.append("model")
+        cfg["model"] = flags["model"]; changed.append("model")
 
     if not changed:
-        print("用法：")
-        print("  askmodel main --key <k> --base <b> --model <m>")
-        print("  askmodel main <provider> --key <k>")
+        print("用法：askmodel main --key <k> --base <b> --model <m>")
         return
-
     config.save(cfg)
     print(f"主模型已更新：{', '.join(changed)}")
 
 
 def cmd_small(args: list):
     cfg = config.load_small_raw()
-
     if not args:
         _show_model(cfg, "小模型配置")
-        # 提示是否回退到主模型
         if not config.is_configured(cfg):
             print("  （未配置完整时，将回退使用主模型）")
         return
@@ -285,21 +270,15 @@ def cmd_small(args: list):
     flags = parse_flags(args)
     changed = []
     if "key" in flags:
-        cfg["api_key"] = flags["key"]
-        changed.append("key")
+        cfg["api_key"] = flags["key"]; changed.append("key")
     if "base" in flags:
-        cfg["base_url"] = flags["base"]
-        changed.append("base")
+        cfg["base_url"] = flags["base"]; changed.append("base")
     if "model" in flags:
-        cfg["model"] = flags["model"]
-        changed.append("model")
+        cfg["model"] = flags["model"]; changed.append("model")
 
     if not changed:
-        print("用法：")
-        print("  askmodel small --key <k> --base <b> --model <m>")
-        print("  askmodel small <provider> --key <k>")
+        print("用法：askmodel small --key <k> --base <b> --model <m>")
         return
-
     config.save_small(cfg)
     print(f"小模型已更新：{', '.join(changed)}")
 
@@ -311,20 +290,15 @@ def cmd_providers():
         print(f"    base_url: {preset['base_url']}")
         print(f"    model:    {preset['model']}")
     print()
-    print("自定义：")
-    print("  askmodel main  --key <k> --base <b> --model <m>")
-    print("  askmodel small --key <k> --base <b> --model <m>")
+    print("自定义：askmodel main --key <k> --base <b> --model <m>")
 
 
 # ---------- scan / flash / to ----------
 
 def cmd_scan(paths_with_deep: list):
-    desc = "，".join(
-        f'{p}({"全量" if d else "标准"})' for p, d in paths_with_deep
-    )
+    desc = "，".join(f'{p}({"全量" if d else "标准"})' for p, d in paths_with_deep)
     print(f"→ 扫描 {desc}...")
     context = scanner.scan_paths(paths_with_deep)
-
     paths = [p for p, _ in paths_with_deep]
     config.save_scan(context, paths)
 
@@ -337,8 +311,7 @@ def cmd_scan(paths_with_deep: list):
     if size_chars > config.SCAN_SIZE_WARN:
         print()
         print(f"  ⚠ 扫描文件较大，生成摘要时可能较慢")
-        print(f"    建议用更精确的路径重新扫描：")
-        print(f'    askmodel here "具体路径" scan')
+        print(f'    建议：askmodel here "具体路径" scan')
 
 
 def cmd_flash():
@@ -361,6 +334,108 @@ def _print_config_guide():
     print("    askmodel main --key <api_key> --base <base_url> --model <model>")
     print()
     print("  查看所有预设：askmodel providers")
+
+
+def _rescan(root: Path, small_cfg: dict):
+    """写文件后重扫 + 更新摘要"""
+    data = config.load_scan_data()
+    paths = data.get("paths", ["."])
+    if not paths:
+        return
+    print(f"\n→ 项目已变化，重新扫描...")
+    new_context = scanner.scan_paths([(p, False) for p in paths])
+    config.save_scan(new_context, paths)
+    if len(new_context) >= memory.SUMMARY_MIN_CHARS:
+        print("→ 更新摘要...")
+        try:
+            new_summary = memory.generate_summary(new_context, small_cfg)
+            memory.save_summary(new_summary)
+            print(f"→ 摘要已更新（{len(new_summary)} 字符）")
+        except Exception as e:
+            print(f"  ✗ 摘要更新失败: {e}")
+    else:
+        memory.save_summary("")
+
+
+def _execute_one(root: Path, act: dict, small_cfg: dict):
+    """执行单个操作"""
+    action = act.get("action", "write")
+
+    # 兼容旧格式
+    if action == "write" and not act.get("filename"):
+        action = "none"
+
+    if action == "none":
+        print(f"\n[模型回答]")
+        print(act.get("reason", ""))
+        return
+
+    print(f"\n[AI 决策] ", end="")
+    if action == "write":
+        print(f"写入 {act['filename']}")
+    elif action == "delete":
+        print(f"删除 {act['filename']}")
+    elif action == "move":
+        print(f"移动 {act['from']} → {act['to']}")
+    else:
+        print(f"未知操作：{action}")
+        return
+
+    print(f"  理由: {act.get('reason', '(无)')}")
+
+    try:
+        if action == "write":
+            target = executor.safe_path(root, act["filename"])
+            if target.exists():
+                if input(f"{target} 已存在，覆盖？(y/n): ").lower() != "y":
+                    print("已跳过")
+                    return
+            executor.do_write(root, act["filename"], act["content"])
+            print(f"[文件操作] ✓ 已写入 {act['filename']} ({len(act['content'])} 字符)")
+            deps = act.get("dependencies", [])
+            if deps:
+                print(f"[依赖提示]")
+                executor.show_dependencies(deps)
+
+        elif action == "delete":
+            target = executor.safe_path(root, act["filename"])
+            if not target.exists():
+                print(f"✗ 路径不存在：{act['filename']}")
+                return
+            if target.is_dir():
+                n = executor.count_files(target)
+                print(f"  ⚠ 这是文件夹，包含 {n} 个文件")
+            if input(f"确认删除 {act['filename']}？(y/n): ").lower() != "y":
+                print("已跳过")
+                return
+            executor.do_delete(root, act["filename"])
+            print(f"[文件操作] ✓ 已删除 {act['filename']}")
+
+        elif action == "move":
+            src_name = act["from"]
+            dst_name = act["to"]
+            src = executor.safe_path(root, src_name)
+            dst = executor.safe_path(root, dst_name)
+            if not src.exists():
+                print(f"✗ 源路径不存在：{src_name}")
+                return
+            if dst.exists():
+                if dst.is_dir():
+                    n = executor.count_files(dst)
+                    print(f"  ⚠ 目标已存在（文件夹，{n} 个文件）")
+                else:
+                    print(f"  ⚠ 目标已存在（文件）")
+                if input(f"覆盖 {dst_name}？(y/n): ").lower() != "y":
+                    print("已跳过")
+                    return
+            if input(f"确认移动 {src_name} → {dst_name}？(y/n): ").lower() != "y":
+                print("已跳过")
+                return
+            executor.do_move(root, src_name, dst_name)
+            print(f"[文件操作] ✓ 已移动 {src_name} → {dst_name}")
+
+    except Exception as e:
+        print(f"✗ 操作失败: {e}")
 
 
 def cmd_to(directory: str, prompt: str):
@@ -411,53 +486,25 @@ def cmd_to(directory: str, prompt: str):
 
     memory.record_turn(prompt, json.dumps(result, ensure_ascii=False))
 
-    if not result.get("filename"):
-        print(f"\n[模型回答]")
-        print(result.get("reason", ""))
+    # 统一成数组
+    if "actions" in result:
+        actions = result["actions"]
     else:
-        target = executor.safe_path(root, result["filename"])
-        print(f"\n──── 执行报告 ────")
-        print(f"[AI 决策] 写入 {result['filename']}")
-        print(f"  理由: {result.get('reason', '(无)')}")
+        actions = [result]
 
-        if target.exists():
-            if input(f"{target} 已存在，覆盖？(y/n): ").lower() != "y":
-                print("已取消")
-                return
+    has_file_op = any(a.get("action") in ("write", "delete", "move") for a in actions)
 
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(result["content"], encoding="utf-8")
-        print(f"[文件操作] ✓ 已写入 {result['filename']} ({len(result['content'])} 字符)")
+    if has_file_op:
+        print(f"\n──── 执行报告（{len(actions)} 个操作）────")
 
-        deps = result.get("dependencies", [])
-        if deps:
-            print(f"[依赖提示]")
-            executor.show_dependencies(deps)
+    for i, act in enumerate(actions, 1):
+        if len(actions) > 1:
+            print(f"\n【操作 {i}/{len(actions)}】")
+        _execute_one(root, act, small_cfg)
 
-        data = config.load_scan_data()
-        paths = data.get("paths", ["."])
-        if paths:
-            print(f"\n→ 项目已变化，重新扫描...")
-            new_context = scanner.scan_paths([(p, False) for p in paths])
-            config.save_scan(new_context, paths)
-            if len(new_context) >= memory.SUMMARY_MIN_CHARS:
-                print("→ 更新摘要...")
-                try:
-                    new_summary = memory.generate_summary(new_context, small_cfg)
-                    memory.save_summary(new_summary)
-                    print(f"→ 摘要已更新（{len(new_summary)} 字符）")
-                except Exception as e:
-                    print(f"  ✗ 摘要更新失败: {e}")
-            else:
-                memory.save_summary("")
-
-    try:
-        if memory.maybe_compress(small_cfg):
-            print("→ 历史对话已压缩")
-    except Exception as e:
-        print(f"  ✗ 历史压缩失败: {e}")
-
-    print("──────────────────")
+    if has_file_op:
+        _rescan(root, small_cfg)
+        print("\n──────────────────")
 
 
 def main():

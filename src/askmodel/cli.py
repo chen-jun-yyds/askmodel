@@ -6,7 +6,23 @@ from pathlib import Path
 from typing import Optional
 
 import typer
-from rich.console import Console
+class FakeConsole:
+    def print(self, *args, **kwargs):
+        # 把你原本用的标签替换成原生 ANSI 颜色码
+        text = " ".join(str(a) for a in args)
+        text = text.replace("[bold cyan]", "\033[1;36m")
+        text = text.replace("[bold yellow]", "\033[1;33m")
+        text = text.replace("[bold green]", "\033[1;32m")
+        text = text.replace("[red]", "\033[91m")
+        text = text.replace("[green]", "\033[92m")
+        text = text.replace("[yellow]", "\033[93m")
+        text = text.replace("[cyan]", "\033[96m")
+        text = text.replace("[dim]", "\033[2m")
+        text = text.replace("[bold]", "\033[1m")
+        text = text.replace("[/]", "\033[0m")
+        print(text, **kwargs)
+
+console = FakeConsole()
 
 from .client import ChatError, ModelClient, parse_ops
 from .models import (
@@ -22,8 +38,6 @@ from .models import (
 from .scanner import scan_tree
 from .store import Store
 from .writer import execute_op
-
-console = Console()
 
 app = typer.Typer(no_args_is_help=False, add_completion=False)
 project_app = typer.Typer(no_args_is_help=False)

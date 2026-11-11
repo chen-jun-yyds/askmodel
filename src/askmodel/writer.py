@@ -103,16 +103,6 @@ def execute_op(op: FileOp, root: Path, backup_dir: Path) -> OpResult:
             target.write_text(op.content or "", encoding="utf-8")
             return OpResult(action="write", path=op.path, ok=True, message="ok")
 
-        if action == "create":
-            if target.exists():
-                return OpResult(action="create", path=op.path, ok=False, message=f"已存在：{op.path}")
-            if op.path.endswith(("/", "\\")):
-                target.mkdir(parents=True, exist_ok=True)
-            else:
-                target.parent.mkdir(parents=True, exist_ok=True)
-                target.touch()
-            return OpResult(action="create", path=op.path, ok=True, message="ok")
-
         if action == "delete":
             if not target.exists():
                 return OpResult(action="delete", path=op.path, ok=False, message=f"不存在：{op.path}")

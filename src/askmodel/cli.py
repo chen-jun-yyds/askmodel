@@ -6,6 +6,8 @@ from pathlib import Path
 from typing import Optional
 
 import typer
+import colorama
+colorama.init()
 class FakeConsole:
     def print(self, *args, **kwargs):
         # 把你原本用的标签替换成原生 ANSI 颜色码
@@ -107,13 +109,12 @@ def build_system_prompt(mode: Mode, cwd: Path) -> str:
         "你必须只输出一个 JSON 数组，不要输出任何其他内容。\n"
         "可用 action：\n"
         '- read: {"action":"read","path":"相对路径","reason":"为什么读"}\n'
-        '- write: {"action":"write","path":"相对路径","content":"文件内容","reason":"为什么写"}（write的路径不存在时可以自动创建文件）\n'
-        '- part_modify: {"action":"part_modify","path":"相对路径","original":"要替换的原文",'
-        '"current":"新内容","near_line":行号可选,"reason":"为什么改"}\n'
-        '- create: {"action":"create","path":"相对路径/","reason":"为什么创建"}（仅用于创建空文件夹）\n'
+        '- write: {"action":"write","path":"相对路径","content":"文件内容","reason":"为什么写"}（如果要创建文件、空文件、或修改文件，必须用 write！write 会自动创建不存在的目录和文件！）\n'
+        '- part_modify: {"action":"part_modify","path":"相对路径","original":"要替换的原文","current":"新内容","near_line":行号可选,"reason":"为什么改"}\n'
         '- delete: {"action":"delete","path":"相对路径","reason":"为什么删"}\n'
         '- chat: {"action":"chat","content":"自然语言说明"}（用于解释、感想、对话）\n'
-        "路径必须相对当前工作目录，不能越界。\n"
+        "【如果你需要创建一个空文件夹或文件，可使用write动作在目标路径写空白内容】\n"
+        "【路径必须相对当前工作目录，不能越界】\n"
         "【严正警告】\n"
         "1. 你只能生成代码和文件，绝对无法执行代码！禁止假装自己要运行文件。\n"
         "2. 你的输出只是指令，需要用户按回车确认后才会生效。所以你绝对不能在一轮里刚写完文件，就立刻去 read 这个文件！\n"
@@ -352,7 +353,7 @@ def run_work_conversation(store: Store, user_input: str, mode: Mode) -> bool:
         written_paths_in_this_round = set()
         valid_ops = []
         for op in ops:
-            if op.action in ("write", "part_modify", "create") and op.path:
+            if op.action in ("write", "part_modify") and op.path:
                 written_paths_in_this_round.add(op.path)
                 
             if op.action == "read" and op.path in written_paths_in_this_round:
@@ -410,19 +411,9 @@ def run_work_conversation(store: Store, user_input: str, mode: Mode) -> bool:
             cache_hit_tokens=result.cache_hit_tokens, elapsed=result.elapsed, raw=result.raw,
         ))
 
-        has_write_op = any(op.action in ("write", "part_modify", "create", "delete") for op in ops)
-        
-        if len(ops) == 0:
+        if not has_read:
             finished = True
             break
-            
-        if not has_read:
-            if has_write_op:
-                other_results.append("以上操作已全部执行成功。如果你还有话要对用户说（比如之前要求的感想），请输出 chat 动作；如果没有，请输出 []。")
-                continue
-            else:
-                finished = True
-                break
 
     if not finished:
         if api_failed:

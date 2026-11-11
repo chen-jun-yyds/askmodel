@@ -40,8 +40,8 @@ def _extract_json_text(text: str) -> str:
             if end > start:
                 text = text[start : end + 1]
 
-    text = text.replace("“", '"').replace("”", '"').replace("‘", "'").replace("’", "'")
-    text = re.sub(r",(\s*[\]}])", r"\1", text)
+    #text = text.replace("“", '"').replace("”", '"').replace("‘", "'").replace("’", "'")
+    #text = re.sub(r",(\s*[\]}])", r"\1", text)
     return text.strip()
 
 
